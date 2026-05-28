@@ -28,7 +28,7 @@ resource "aws_security_group" "windows_rdp" {
   }
 
   lifecycle {
-    prevent_destroy = true # Seguranca: nao permite deletar sem querer
+    prevent_destroy = false
   }
 
   tags = { Name = "${var.environment}-windows-rdp-sg" }

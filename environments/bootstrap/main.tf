@@ -5,7 +5,8 @@ resource "random_string" "suffix" {
 }
 
 resource "aws_s3_bucket" "state" {
-  bucket = "terraform-state-windows-ad-${random_string.suffix.result}"
+  bucket        = "terraform-state-windows-ad-${random_string.suffix.result}"
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_versioning" "state" {
@@ -17,7 +18,7 @@ resource "aws_s3_bucket_versioning" "state" {
 
 # Atualiza o provider.tf do dev com o nome do bucket criado
 resource "local_file" "update_dev_provider" {
-  content = <<-EOT
+  content  = <<-EOT
 terraform {
   required_providers {
     aws = {
@@ -27,7 +28,7 @@ terraform {
     random = {
       source  = "hashicorp/random"
       version = "~> 3.6"
-    }
+  
   }
 
   backend "s3" {
@@ -44,3 +45,4 @@ provider "aws" {
 EOT
   filename = "${path.module}/../dev/provider.tf"
 }
+
