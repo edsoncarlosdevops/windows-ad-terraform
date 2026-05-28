@@ -1,8 +1,3 @@
-# ATENCAO: Antes de rodar terraform init aqui, execute:
-# 1. cd environments/stage-1 && terraform init && terraform apply
-# 2. Copie o bucket_name do output
-# 3. Cole no backend abaixo
-
 terraform {
   required_providers {
     aws = {
@@ -16,7 +11,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "SUBSTITUA_PELO_NOME_DO_BUCKET"
+    bucket = "terraform-state-windows-ad-qni8axnr"
     key    = "dev/terraform.tfstate"
     region = "us-east-1"
     encrypt = true
