@@ -14,4 +14,6 @@ desktop.ini
 .idea/
 .vscode/
 *.swp
+
+# Notes
 NOTES.txt
