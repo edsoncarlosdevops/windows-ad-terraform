@@ -14,3 +14,33 @@ resource "aws_s3_bucket_versioning" "state" {
     status = "Enabled"
   }
 }
+
+# Atualiza o provider.tf do dev com o nome do bucket criado
+resource "local_file" "update_dev_provider" {
+  content = <<-EOT
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
+  }
+
+  backend "s3" {
+    bucket = "${aws_s3_bucket.state.bucket}"
+    key    = "dev/terraform.tfstate"
+    region = "us-east-1"
+    encrypt = true
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+EOT
+  filename = "${path.module}/../dev/provider.tf"
+}
