@@ -1,6 +1,6 @@
 resource "aws_security_group" "windows_rdp" {
   name        = "${var.environment}-windows-rdp-sg"
-  description = "Libera RDP (3389) e WinRM (5985-5986)"
+  description = "Allows RDP (3389) and WinRM (5985-5986) access"
   vpc_id      = var.vpc_id
 
   # Em producao, trocar 0.0.0.0/0 pelo IP do seu escritorio/VPN
@@ -9,7 +9,7 @@ resource "aws_security_group" "windows_rdp" {
     to_port     = 3389
     protocol    = "tcp"
     cidr_blocks = [var.allowed_rdp_cidr]
-    description = "RDP"
+    description = "Allow RDP access from trusted IPs"
   }
 
   ingress {
@@ -17,7 +17,7 @@ resource "aws_security_group" "windows_rdp" {
     to_port     = 5986
     protocol    = "tcp"
     cidr_blocks = [var.allowed_rdp_cidr]
-    description = "WinRM"
+    description = "Allow WinRM access from trusted IPs"
   }
 
   egress {
@@ -25,6 +25,7 @@ resource "aws_security_group" "windows_rdp" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound traffic"
   }
 
   lifecycle {
@@ -33,3 +34,4 @@ resource "aws_security_group" "windows_rdp" {
 
   tags = { Name = "${var.environment}-windows-rdp-sg" }
 }
+

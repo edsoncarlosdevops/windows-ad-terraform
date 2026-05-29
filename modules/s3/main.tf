@@ -1,11 +1,11 @@
 resource "aws_s3_bucket" "this" {
-  bucket = var.bucket_name
+  bucket        = var.bucket_name
   force_destroy = true
-  tags = { Name = "${var.environment}-${var.bucket_name}" }
+  tags          = { Name = "${var.environment}-${var.bucket_name}" }
 }
 
 resource "aws_s3_bucket_public_access_block" "this" {
-  bucket = aws_s3_bucket.this.id
+  bucket                  = aws_s3_bucket.this.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -20,10 +20,27 @@ resource "aws_s3_bucket_versioning" "this" {
 }
 
 resource "aws_kms_key" "s3" {
-  description             = "KMS key para o bucket ${var.bucket_name}"
+  description             = "KMS key for bucket ${var.bucket_name}"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "key-policy-s3"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
 }
+
+data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   bucket = aws_s3_bucket.this.id
@@ -47,4 +64,15 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
       noncurrent_days = 30
     }
   }
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+    filter {
+      prefix = ""
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 }
+

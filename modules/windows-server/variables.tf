@@ -1,26 +1,33 @@
 variable "environment" {
-  description = "Ambiente"
+  description = "Environment name (e.g., dev, prod)"
   type        = string
 }
 
 variable "subnet_id" {
-  description = "ID da subnet onde a EC2 sera criada"
+  description = "Subnet ID where the EC2 instance will be created"
   type        = string
 }
 
 variable "security_group_id" {
-  description = "ID do security group"
+  description = "Security Group ID"
   type        = string
 }
 
 variable "admin_password" {
-  description = "Senha do administrador do Windows"
+  description = "Windows Administrator password"
   type        = string
   sensitive   = true
 }
 
 variable "instance_type" {
-  description = "Tipo da instancia"
+  description = "EC2 instance type"
   type        = string
   default     = "t3.large"
 }
+
+variable "key_name" {
+  description = "Key pair name for EC2 access"
+  type        = string
+  default     = null
+}
+
