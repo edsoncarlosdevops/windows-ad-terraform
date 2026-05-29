@@ -1,9 +1,9 @@
 variable "environment" {
-  description = "Ambiente"
+  description = "Environment name"
   type        = string
 }
 
 variable "bucket_name" {
-  description = "Nome do bucket S3"
+  description = "S3 bucket name"
   type        = string
 }

@@ -1,15 +1,15 @@
 variable "environment" {
-  description = "Ambiente"
+  description = "Environment name"
   type        = string
 }
 
 variable "vpc_id" {
-  description = "ID da VPC"
+  description = "VPC ID"
   type        = string
 }
 
 variable "allowed_rdp_cidr" {
-  description = "CIDR liberado para RDP"
+  description = "CIDR block allowed for RDP access"
   type        = string
   default     = "0.0.0.0/0"
 }

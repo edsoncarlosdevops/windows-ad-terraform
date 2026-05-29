@@ -8,10 +8,18 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.0"
+    }
   }
 
   backend "s3" {
-    bucket = "terraform-state-windows-ad-qni8axnr"
+    bucket = "terraform-state-windows-ad-jtutoylz"
     key    = "dev/terraform.tfstate"
     region = "us-east-1"
     encrypt = true
