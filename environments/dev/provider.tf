@@ -19,7 +19,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "terraform-state-windows-ad-jtutoylz"
+    bucket = "terraform-state-windows-ad-lestgiwg"
     key    = "dev/terraform.tfstate"
     region = "us-east-1"
     encrypt = true
