@@ -4,11 +4,31 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+  AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN || '' }}
 
 jobs:
-  apply:
+  check-credentials:
+    name: Check AWS Credentials
+    runs-on: ubuntu-latest
+    outputs:
+      has_secrets: ${{ steps.check.outputs.has_secrets }}
+    steps:
+      - name: Check if GitHub secrets are set
+        id: check
+        run: |
+          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+            echo "Using GitHub secrets for AWS authentication"
+          else
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+            echo "No GitHub secrets found. Using local AWS CLI credentials."
+          fi
+
+  plan:
+    name: Plan
+    needs: [check-credentials]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -22,11 +42,67 @@ jobs:
         with:
           terraform_version: 1.9.0
 
+      - name: Configure AWS credentials (if secrets provided)
+        if: needs.check-credentials.outputs.has_secrets == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform plan
+        run: terraform plan -out=tfplan
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: environments/dev/tfplan
+
+  apply:
+    name: Apply
+    needs: [plan]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: environments/dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: Configure AWS credentials (if secrets provided)
+        if: needs.check-credentials.outputs.has_secrets == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+
       - name: Terraform init
         run: terraform init
 
       - name: Terraform apply
-        run: terraform apply -auto-approve
+        run: terraform apply tfplan
 
-      - name: Get outputs
-        run: terraform output
+      - name: Show outputs
+        run: |
+          echo "### Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          terraform output >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+

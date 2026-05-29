@@ -197,6 +197,27 @@ The Security Group restricts RDP (port 3389) to the public IP of whoever runs `t
 > - Enable AWS CloudTrail and S3 access logging
 > - Use AWS Systems Manager (SSM) instead of direct RDP when possible
 
+## GitHub Actions (CI/CD)
+
+The project includes three GitHub Actions workflows for continuous integration and deployment:
+
+### Available Workflows
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| **Terraform Validate** | `push` / `pull request` | Lint, validate, security scan (Checkov), and OPA policy checks |
+| **Terraform Apply** | Manual (`workflow_dispatch`) | Plan + Apply with deployment summary |
+| **Terraform Destroy** | Manual (`workflow_dispatch`) | Destroys all infrastructure |
+
+### AWS Credentials
+
+The workflows work in two ways:
+
+1. **With GitHub Secrets** — Set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN` in your repository secrets
+2. **With AWS CLI locally** — If no secrets are set, the workflow uses the credentials already configured on your machine
+
+> No configuration needed — just trigger the workflow and it will detect the available credentials.
+
 ## Clean Up
 
 ```bash

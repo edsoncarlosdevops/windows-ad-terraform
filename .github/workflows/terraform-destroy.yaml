@@ -4,11 +4,13 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+  AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN || '' }}
 
 jobs:
   destroy:
+    name: Destroy Infrastructure
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -22,8 +24,22 @@ jobs:
         with:
           terraform_version: 1.9.0
 
+      - name: Configure AWS credentials (if secrets provided)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID || 'local' }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY || 'local' }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN || '' }}
+          aws-region: us-east-1
+
       - name: Terraform init
         run: terraform init
 
       - name: Terraform destroy
         run: terraform destroy -auto-approve
+
+      - name: Cleanup summary
+        run: |
+          echo "### Infrastructure Destroyed" >> $GITHUB_STEP_SUMMARY
+          echo "All resources have been successfully removed." >> $GITHUB_STEP_SUMMARY
+
