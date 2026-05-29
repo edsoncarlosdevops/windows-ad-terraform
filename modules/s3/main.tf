@@ -1,7 +1,15 @@
+# NOTE: force_destroy is enabled for this test/development environment.
+# In production, set force_destroy = false and add a lifecycle.prevent_destroy = true
+# to prevent accidental deletion of the S3 bucket and its contents.
 resource "aws_s3_bucket" "this" {
   bucket        = var.bucket_name
   force_destroy = true
-  tags          = { Name = "${var.environment}-${var.bucket_name}" }
+  tags = {
+    Name        = "${var.environment}-${var.bucket_name}"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Project     = "windows-ad-terraform"
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "this" {

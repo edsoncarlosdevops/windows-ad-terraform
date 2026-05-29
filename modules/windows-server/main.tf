@@ -85,6 +85,11 @@ ${file("${path.module}/../../scripts/configure-ad.ps1")}
     </powershell>
   EOF
 
-  tags = { Name = "${var.environment}-windows-server" }
+  tags = {
+    Name        = "${var.environment}-windows-server"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Project     = "windows-ad-terraform"
+  }
 }
 

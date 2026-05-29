@@ -4,9 +4,18 @@ resource "random_string" "suffix" {
   upper   = false
 }
 
+# NOTE: force_destroy is enabled for this test/development environment.
+# In production, set force_destroy = false and add lifecycle.prevent_destroy = true
+# to protect the Terraform state bucket from accidental deletion.
 resource "aws_s3_bucket" "state" {
   bucket        = "terraform-state-windows-ad-${random_string.suffix.result}"
   force_destroy = true
+  tags = {
+    Name        = "terraform-state-windows-ad"
+    Environment = "bootstrap"
+    ManagedBy   = "terraform"
+    Project     = "windows-ad-terraform"
+  }
 }
 
 resource "aws_s3_bucket_versioning" "state" {
@@ -53,4 +62,5 @@ provider "aws" {
 EOT
   filename = "${path.module}/../dev/provider.tf"
 }
+
 

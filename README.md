@@ -173,6 +173,15 @@ The entire server configuration is automated via **EC2 userdata** and **Windows 
 
 The Security Group restricts RDP (port 3389) to the public IP of whoever runs `terraform apply`. If your IP changes, run `terraform apply` again to update it automatically.
 
+> **⚠️ Production Considerations:**
+> This project is configured for **testing/demonstration** purposes. For production use, consider:
+> - Remove `force_destroy = true` from S3 buckets to prevent accidental deletion
+> - Set `lifecycle { prevent_destroy = true }` on critical resources (S3, Security Groups)
+> - Use a dedicated VPC with private subnets and a bastion host for RDP access
+> - Restrict egress traffic instead of allowing all (`0.0.0.0/0`)
+> - Enable AWS CloudTrail and S3 access logging
+> - Use AWS Systems Manager (SSM) instead of direct RDP when possible
+
 ## Clean Up
 
 ```bash

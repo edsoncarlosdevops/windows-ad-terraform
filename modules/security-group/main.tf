@@ -29,9 +29,17 @@ resource "aws_security_group" "windows_rdp" {
   }
 
   lifecycle {
+    # NOTE: prevent_destroy is disabled for this test environment.
+    # In production, set prevent_destroy = true to avoid accidental deletion
+    # of the security group which could disrupt running instances.
     prevent_destroy = false
   }
 
-  tags = { Name = "${var.environment}-windows-rdp-sg" }
+  tags = {
+    Name        = "${var.environment}-windows-rdp-sg"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+    Project     = "windows-ad-terraform"
+  }
 }
 
