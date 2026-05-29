@@ -13,19 +13,20 @@ output "windows_private_ip" {
   value       = module.windows_server.private_ip
 }
 
-output "windows_rdp_command" {
+output "rdp_command" {
   description = "RDP connection command"
   value       = "mstsc /v:${module.windows_server.public_ip}"
 }
 
-output "windows_password_command" {
-  description = "Command to retrieve Administrator password"
-  value       = "aws ec2 get-password-data --instance-id ${module.windows_server.instance_id} --priv-launch-key ${path.module}/windows-ad-key.pem"
+output "username" {
+  description = "Administrator username for RDP login"
+  value       = "${"."}\\Administrator"
 }
 
-output "windows_login_hint" {
-  description = "Default login credentials"
-  value       = "User: Administrator | Password: Admin@12345"
+output "admin_password" {
+  description = "Administrator password. Run: terraform output admin_password"
+  value       = random_password.admin.result
+  sensitive   = true
 }
 
 output "s3_bucket" {
@@ -33,13 +34,8 @@ output "s3_bucket" {
   value       = module.s3.bucket_id
 }
 
-output "rdp_command" {
-  description = "RDP connection command"
-  value       = "mstsc /v:${module.windows_server.public_ip}"
-}
-
-output "get_password" {
-  description = "Command to decrypt Windows password"
-  value       = "aws ec2 get-password-data --instance-id ${module.windows_server.instance_id} --priv-launch-key ${path.module}/windows-ad-key.pem"
+output "vpc_id" {
+  description = "VPC ID"
+  value       = module.vpc.vpc_id
 }
 

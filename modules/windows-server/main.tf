@@ -61,6 +61,9 @@ resource "aws_instance" "windows" {
 ${file("${path.module}/../../scripts/configure-ad.ps1")}
 '@ | Set-Content -Path 'C:\Scripts\configure-ad.ps1' -Encoding UTF8
 
+        Write-Host "=== Setting Safe Mode password for AD ==="
+        $env:SAFE_MODE_PASS = "${var.safe_mode_password}"
+
         Write-Host "=== Registering RunOnce to execute script after every boot ==="
         $runOncePath = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce'
         Set-ItemProperty -Path $runOncePath -Name 'ConfigureAD' -Value "powershell.exe -ExecutionPolicy Bypass -File C:\Scripts\configure-ad.ps1"
@@ -77,11 +80,31 @@ ${file("${path.module}/../../scripts/configure-ad.ps1")}
         Stop-Transcript
     }
 
-    Write-Host "=== Configuring WinRM and Firewall ==="
+    Write-Host "=== Configuring Firewall rules (specific ports only) ==="
+    # Allow RDP (3389)
+    netsh advfirewall firewall add rule name="RDP (3389)" dir=in action=allow protocol=tcp localport=3389
+    # Allow WinRM HTTP (5985)
+    netsh advfirewall firewall add rule name="WinRM HTTP (5985)" dir=in action=allow protocol=tcp localport=5985
+    # Allow WinRM HTTPS (5986)
+    netsh advfirewall firewall add rule name="WinRM HTTPS (5986)" dir=in action=allow protocol=tcp localport=5986
+    # Allow DNS (53) - required for AD
+    netsh advfirewall firewall add rule name="DNS (53)" dir=in action=allow protocol=udp localport=53
+    # Allow Kerberos (88) - required for AD
+    netsh advfirewall firewall add rule name="Kerberos (88)" dir=in action=allow protocol=tcp localport=88
+    netsh advfirewall firewall add rule name="Kerberos (88) UDP" dir=in action=allow protocol=udp localport=88
+    # Allow LDAP (389) - required for AD
+    netsh advfirewall firewall add rule name="LDAP (389)" dir=in action=allow protocol=tcp localport=389
+    # Allow LDAP SSL (636)
+    netsh advfirewall firewall add rule name="LDAP SSL (636)" dir=in action=allow protocol=tcp localport=636
+    # Allow SMB (445) - required for AD replication
+    netsh advfirewall firewall add rule name="SMB (445)" dir=in action=allow protocol=tcp localport=445
+    # Allow ICMPv4 (ping) for testing
+    netsh advfirewall firewall add rule name="ICMPv4 (ping)" dir=in action=allow protocol=icmpv4
+
+    Write-Host "=== Configuring WinRM ==="
     winrm set winrm/config/service/auth '@{Basic="true"}'
     winrm set winrm/config/service '@{AllowUnencrypted="true"}'
     winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="2048"}'
-    netsh advfirewall set allprofiles state off
     </powershell>
   EOF
 

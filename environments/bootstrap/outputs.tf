@@ -1,12 +1,20 @@
 output "bucket_name" {
-  value = aws_s3_bucket.state.bucket
+  description = "Terraform state S3 bucket name"
+  value       = aws_s3_bucket.state.bucket
 }
 
-output "init_dev" {
+output "dynamodb_table" {
+  description = "DynamoDB table for state locking"
+  value       = aws_dynamodb_table.terraform_lock.name
+}
+
+output "next_steps" {
+  description = "Instructions to deploy the dev environment"
   value = <<-EOT
-    Execute no dev:
+    Run the following commands to deploy the infrastructure:
       cd environments/dev
       terraform init -reconfigure
       terraform apply
   EOT
 }
+

@@ -16,14 +16,10 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.0"
     }
-    http = {
-      source  = "hashicorp/http"
-      version = "~> 3.4"
-    }
   }
 
   backend "s3" {
-    bucket         = "terraform-state-windows-ad-87ryrbcc"
+    bucket         = "terraform-state-windows-ad-b4r79ujv"
     key            = "dev/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true

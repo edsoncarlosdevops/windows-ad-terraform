@@ -3,7 +3,7 @@ resource "aws_security_group" "windows_rdp" {
   description = "Allows RDP (3389) and WinRM (5985-5986) access"
   vpc_id      = var.vpc_id
 
-  # Em producao, trocar 0.0.0.0/0 pelo IP do seu escritorio/VPN
+  # In production, restrict to your office/VPN CIDR instead of 0.0.0.0/0
   ingress {
     from_port   = 3389
     to_port     = 3389

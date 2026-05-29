@@ -19,6 +19,12 @@ variable "admin_password" {
   sensitive   = true
 }
 
+variable "safe_mode_password" {
+  description = "Safe Mode Recovery password for Active Directory"
+  type        = string
+  sensitive   = true
+}
+
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string

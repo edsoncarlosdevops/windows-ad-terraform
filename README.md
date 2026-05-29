@@ -51,7 +51,14 @@ terraform apply -auto-approve
 | Field | Value |
 |-------|-------|
 | **Username** | `.\Administrator` |
-| **Password** | `Admin@12345` |
+| **Password** | Auto-generated (see below) |
+
+> The Administrator password is **auto-generated** during deployment.
+> Run the following command to retrieve it:
+> ```bash
+> terraform output admin_password
+> ```
+> The `.\` prefix indicates a local machine account (not a domain account).
 
 ### Test User Access
 
@@ -62,10 +69,18 @@ terraform apply -auto-approve
 
 > **Note:** `testuser` is a regular domain user (non-admin). Use it to validate GPO restrictions.
 
-### Get server IP
+### Get server IP and password
 
 ```bash
+# Get server IP and other info
 terraform output
+
+# Get Administrator password (auto-generated)
+terraform output admin_password
+
+# Get username (use -raw to avoid escaped backslash in output)
+terraform output -raw username
+# Returns: .\Administrator
 ```
 
 ## What Gets Configured Automatically
