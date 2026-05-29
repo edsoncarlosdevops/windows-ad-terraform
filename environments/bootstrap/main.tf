@@ -25,7 +25,26 @@ resource "aws_s3_bucket_versioning" "state" {
   }
 }
 
-# Atualiza o provider.tf do dev com o nome do bucket criado
+# DynamoDB table for Terraform state locking
+# Prevents concurrent operations from corrupting the state file
+resource "aws_dynamodb_table" "terraform_lock" {
+  name         = "terraform-state-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name        = "terraform-state-lock"
+    Environment = "bootstrap"
+    ManagedBy   = "terraform"
+    Project     = "windows-ad-terraform"
+  }
+}
+# Atualiza o provider.tf do dev com o nome do bucket e DynamoDB
 resource "local_file" "update_dev_provider" {
   content  = <<-EOT
 terraform {
@@ -49,10 +68,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "${aws_s3_bucket.state.bucket}"
-    key    = "dev/terraform.tfstate"
-    region = "us-east-1"
-    encrypt = true
+    bucket         = "${aws_s3_bucket.state.bucket}"
+    key            = "dev/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-state-lock"
   }
 }
 
@@ -62,5 +82,4 @@ provider "aws" {
 EOT
   filename = "${path.module}/../dev/provider.tf"
 }
-
 
