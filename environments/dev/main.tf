@@ -28,6 +28,8 @@ module "security_group" {
 }
 
 # ---- Windows Server ----
+
+# Auto-generate secure local Administrator password (sensitive output)
 resource "random_password" "admin" {
   length           = 16
   special          = true
@@ -35,6 +37,7 @@ resource "random_password" "admin" {
   min_special      = 2
 }
 
+# Auto-generate Directory Services Restore Mode (DSRM) safe mode password for Active Directory promotion
 resource "random_password" "safe_mode" {
   length           = 16
   special          = true
@@ -42,12 +45,14 @@ resource "random_password" "safe_mode" {
   min_special      = 2
 }
 
+# Generate unique suffix for SSH key pairs to avoid collisions
 resource "random_string" "key_suffix" {
   length  = 8
   special = false
   upper   = false
 }
 
+# Programmatically generate key pair for initial EC2 Windows Administrator password retrieval if needed
 resource "tls_private_key" "windows_admin" {
   algorithm = "RSA"
   rsa_bits  = 2048
@@ -58,6 +63,7 @@ resource "aws_key_pair" "windows_admin" {
   public_key = tls_private_key.windows_admin.public_key_openssh
 }
 
+# Save generated private key locally with restrictive file permissions (read-only for owner)
 resource "local_file" "windows_admin_pem" {
   content         = tls_private_key.windows_admin.private_key_pem
   filename        = "${path.module}/windows-ad-key.pem"
