@@ -1,225 +1,188 @@
-# Windows AD Domain Controller with Terraform
+# AWS Windows Domain Controller Provisioning
 
-This project automates the provisioning of a **Windows Server 2022 EC2 instance** and configures it as an **Active Directory Domain Controller** using Terraform and PowerShell.
+This project automates the provisioning and configuration of a Windows Server 2022 Active Directory Domain Controller (DC) on AWS using Terraform and PowerShell. It includes a fully automated post-installation configuration cycle and continuous integration/continuous deployment (CI/CD) workflows.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│                  AWS Cloud                          │
-│                                                      │
-│  ┌──────────────┐    ┌──────────────┐               │
-│  │   S3 Bucket  │    │  Security    │               │
-│  │  (Scripts)   │    │   Group      │               │
-│  └──────────────┘    └──────┬───────┘               │
-│                             │                       │
-│                    ┌────────▼────────┐              │
-│                    │  Windows Server │              │
-│                    │  2022 EC2       │              │
-│                    │  lab.local      │              │
-│                    │  Domain Ctrl    │              │
-│                    └─────────────────┘              │
-└─────────────────────────────────────────────────────┘
-```
+- **AWS Infrastructure (Terraform)**:
+  - **VPC**: Dedicated Virtual Private Cloud with a public subnet, internet gateway, and route tables for ingress/egress routing.
+  - **EC2 Instance**: Windows Server 2022 (`t3.large`) provisioned inside the public subnet.
+  - **S3 Bucket**: Secure storage resource provisioned with versioning, bucket lifecycle policies, and server-side encryption (SSE-KMS) with customer managed keys.
+  - **Security Group**: Restricts RDP (port 3389) dynamically to the deployment host's public IP address (retrieved in real-time via `api.ipify.org`).
 
-## Prerequisites
+- **OS Configuration (PowerShell)**:
+  - Automated Active Directory Domain Services (AD DS) installation and forest promotion.
+  - Organization Unit (OU) and test user provisioning.
+  - Group Policy Objects (GPOs) enforcement.
+  - Scheduled task implementation.
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5
-- [AWS CLI](https://aws.amazon.com/cli/) configured with credentials
-- An AWS account with permissions to create EC2, S3, and Security Groups
+---
 
-## Quick Start
+## Key Design Decisions
 
-```bash
-# Clone the repository
-git clone <your-repo-url>
-cd windows-ad-terraform/environments/dev
+- **Two-Phase Agentless Provisioning**: Used native PowerShell combined with the Windows `RunOnce` registry key. This eliminates the need for external configuration management tooling (e.g., Ansible, Chef) while successfully navigating the mandatory system reboot required during Active Directory promotion.
+- **Dynamic IP Restriction**: Rather than exposing RDP (port 3389) to `0.0.0.0/0`, the configuration dynamically fetches the deployment operator's public IP via `api.ipify.org` during execution, restricting ingress traffic specifically to the authorized administrator.
+- **Automated Policy and Security Scanning**: Included Checkov (SAST) and Open Policy Agent (OPA) directly in the CI/CD pull request lifecycle. This ensures compliance checks and security scans are executed prior to resource modification.
+- **Secure Password Lifecycle**: Used Terraform's `random_password` provider to generate the Administrator password programmatically, outputting it securely via outputs rather than hardcoding credentials in configuration scripts.
 
-# Initialize Terraform
-terraform init
+---
 
-# Deploy everything
-terraform apply -auto-approve
-```
+## CI/CD Workflows (GitHub Actions)
 
-**⏱ Wait ~15 minutes** for the server to fully configure (AD installation, promotion, reboot, and post-reboot setup).
+The repository provides automated pipelines under `.github/workflows/` to manage code quality, security, and deployment:
 
-## Accessing the Server
+### 1. Terraform Validate (`terraform-validate.yaml`)
+- **Trigger**: Automatic on `push` and `pull_request` to the `main` branch.
+- **Jobs**:
+  - **Validate**: Formats (`terraform fmt -check`), initializes without backend (`terraform init -backend=false`), and runs static validation (`terraform validate`).
+  - **Security Scan**: Utilizes **Checkov** to run static application security testing (SAST) on Terraform configurations.
+  - **OPA Policy Check**: Executes Open Policy Agent (OPA) checks to ensure compliance with organization infrastructure policies.
 
-### Administrator Access
+### 2. Terraform Apply (`terraform-apply.yaml`)
+- **Trigger**: Manual (`workflow_dispatch`).
+- **Jobs**:
+  - **Plan**: Generates and uploads the execution plan (`tfplan`) as an artifact.
+  - **Apply**: Downloads the artifact and applies changes. Employs GitHub Secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) for AWS authentication.
+  - **Summary**: Writes the deployment output parameters directly to the GitHub Action workflow summary.
 
-| Field | Value |
-|-------|-------|
-| **Username** | `.\Administrator` |
-| **Password** | Auto-generated (see below) |
+### 3. Terraform Destroy (`terraform-destroy.yaml`)
+- **Trigger**: Manual (`workflow_dispatch`).
+- **Jobs**:
+  - **Destroy**: Tear down all resources provisioned by the workspace to prevent active charges.
 
-> The Administrator password is **auto-generated** during deployment.
-> Run the following command to retrieve it:
-> ```bash
-> terraform output admin_password
-> ```
-> The `.\` prefix indicates a local machine account (not a domain account).
+---
 
-### Test User Access
+## How the Automation Cycle Works
 
-| Field | Value |
-|-------|-------|
-| **Username** | `testuser@lab.local` |
-| **Password** | `P@ssw0rd123!` |
+The OS configuration runs completely unattended by leveraging EC2 UserData and Windows `RunOnce` registry settings:
 
-> **Note:** `testuser` is a regular domain user (non-admin). Use it to validate GPO restrictions.
+1. **Phase 1: Boot & AD DS Installation**:
+   - The instance boots and retrieves the `configure-ad.ps1` script from the S3 bucket.
+   - UserData triggers the initial run of the script.
+   - The script installs the AD DS role and promotes the server to a Domain Controller for the `lab.local` domain.
+   - The promotion process triggers a mandatory system reboot.
+   - Before rebooting, a registry key is added to `HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce` to resume script execution.
 
-### Get server IP and password
+2. **Phase 2: Post-Reboot Configuration**:
+   - Upon reboot, the system automatically logs in as Administrator and resumes execution via `RunOnce`.
+   - The script detects that the AD DS role is active and proceeds with:
+     - Creating the target OU (`OU=TestOU,DC=lab,DC=local`).
+     - Provisioning `testuser@lab.local` with standard user and remote access privileges.
+     - Creating and linking GPOs (Notepad auto-launch and C:\ drive restriction).
+     - Scheduling a daily reboot task at 03:00 AM.
+     - Finalizing system security and removing the `RunOnce` registry key.
 
-```bash
-# Get server IP and other info
-terraform output
+---
 
-# Get Administrator password (auto-generated)
-terraform output admin_password
+## Deployment Instructions
 
-# Get username (use -raw to avoid escaped backslash in output)
-terraform output -raw username
-# Returns: .\Administrator
-```
+### Option A: Local Deployment
 
-## What Gets Configured Automatically
+1. **Initialize Backend and Providers**:
+   ```bash
+   cd environments/dev
+   terraform init
+   ```
+2. **Apply Configurations**:
+   ```bash
+   terraform apply -auto-approve
+   ```
 
-### ✅ Active Directory
-- **Domain**: `lab.local` (NetBIOS: `LAB`)
-- **Forest/Domain functional level**: Windows 2016
-- **DNS** installed and integrated with AD
+### Option B: CI/CD Deployment
 
-### ✅ Group Policies (GPOs)
+1. Configure AWS credentials as GitHub Secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`).
+2. Run the **Terraform Apply** workflow manually in the GitHub Actions tab.
+3. Access the output details in the GitHub Run Summary.
 
-| GPO Name | Description | Scope |
-|----------|-------------|-------|
-| **Launch Notepad on Logon** | Automatically opens Notepad when any domain user logs in | All domain users |
-| **Restrict C Drive Access** | Prevents non-admin users from browsing the C:\ drive | All domain users |
+---
 
-### ✅ Organizational Unit & Test User
+## Credentials & RDP Access
 
-- **OU**: `OU=TestOU,DC=lab,DC=local`
-- **Test User**: `testuser@lab.local` / `P@ssw0rd123!`
-  - Member of: `Domain Users`, `Remote Desktop Users`
-  - Password never expires
+After running `terraform apply`, retrieve the deployment credentials and connection parameters directly from the Terraform outputs:
 
-### ✅ Scheduled Task
+### 1. Host IP & Connection Command
+- **Server Public IP**: Retrieve via `terraform output -raw windows_public_ip`
+- **RDP Direct Command**: Retrieve via `terraform output -raw rdp_command` (e.g., `mstsc /v:<ip>`)
 
-| Task Name | Trigger | Action |
-|-----------|---------|--------|
-| **DailyReboot** | Daily at 03:00 AM | Reboots the server |
+### 2. Administrator Account (Local Admin)
+- **Username**: Retrieve via `terraform output -raw username` (returns `.\Administrator`)
+- **Password**: Retrieve via `terraform output -raw admin_password`
 
-### ✅ Security Configuration
+### 3. Test Domain Account (Standard Domain User)
+- **Username**: `testuser@lab.local` (or `LAB\testuser`)
+- **Password**: `P@ssw0rd123!`
+- **Access Privilege**: Standard domain user, member of `Domain Users` and `Remote Desktop Users` (use this account to test GPO limitations).
 
-- **RDP access**: Restricted to the IP of whoever runs `terraform apply` (dynamic IP detection)
-- **WinRM**: Basic auth enabled
-- **Firewall**: Disabled for testing purposes
-
-## Validation Checklist
-
-After deployment, run these commands inside the server to validate everything:
-
-```powershell
-# 1. Check domain status
-Get-ADDomain | Select-Object DNSRoot, NetBIOSName, DomainMode
-
-# 2. Check applied GPOs
-gpresult /r
-
-# 3. Check test user
-Get-ADUser -Filter "SamAccountName -eq 'testuser'"
-
-# 4. Check scheduled task
-Get-ScheduledTask -TaskName DailyReboot | Select-Object TaskName, State
-
-# 5. Check installation logs
-Get-Content C:\Logs\configure-ad.log -Tail 30
-```
-
-## Manual Testing
-
-### Test GPO - Notepad Auto-launch
-1. Connect via RDP as `testuser@lab.local`
-2. ✅ **Notepad will open automatically**
-
-### Test GPO - C:\ Drive Restriction
-1. Connect via RDP as `testuser@lab.local`
-2. Open File Explorer > This PC
-3. Try to access **C:\**
-4. ✅ **Access denied**
+---
 
 ## Project Structure
 
 ```
 ├── environments/
-│   ├── bootstrap/          # Terraform state backend
-│   └── dev/                # Development environment
-│       ├── main.tf         # Main configuration
-│       ├── provider.tf     # Providers and backend
-│       └── outputs.tf      # Outputs
+│   ├── bootstrap/          # Terraform state backend infrastructure
+│   └── dev/                # Development environment workspace
+│       ├── main.tf         # Main declaration of modules and variables
+│       ├── provider.tf     # AWS Provider and S3 Backend configuration
+│       └── outputs.tf      # Standard outputs (IP, credentials, commands)
 ├── modules/
-│   ├── s3/                 # S3 bucket module
-│   ├── security-group/     # Security group module
-│   └── windows-server/     # Windows EC2 + userdata module
+│   ├── s3/                 # Provisioning of the setup script storage bucket
+│   ├── security-group/     # Ingress rules with dynamic IP fetching
+│   ├── vpc/                # Virtual Private Cloud networking module
+│   └── windows-server/     # Windows EC2 instance and UserData boot cycle
+├── policies/
+│   └── terraform.rego      # Rego files for Open Policy Agent (OPA) validation
 └── scripts/
-    └── configure-ad.ps1    # AD configuration script
+    ├── configure-ad.ps1    # Automated AD DS promotion & post-reboot configuration
+    └── setup.sh            # Local helper bootstrap script
 ```
 
-## How the Automation Works
+---
 
-The entire server configuration is automated via **EC2 userdata** and **Windows RunOnce**:
+## Deliverables & Configurations
 
-1. **EC2 Launch** > Userdata runs:
-   - Sets Administrator password
-   - Copies `configure-ad.ps1` to `C:\Scripts\`
-   - Registers a **RunOnce** entry to execute after every boot
-   - Runs the script (installs AD + promotes to DC > **reboot**)
+### Domain Settings
+- **Forest Domain**: `lab.local`
+- **Functional Level**: Windows Server 2016
 
-2. **Post-reboot** > RunOnce executes the script again:
-   - Detects AD is already installed
-   - Creates GPOs, OU, test user, scheduled task
-   - Configures WinRM and disables firewall
-   - Removes the RunOnce entry
+### Group Policy Objects (GPOs)
+- **Launch Notepad on Logon**: Automatically runs `notepad.exe` for all users on login.
+- **Restrict C Drive Access**: Restricts standard domain users (non-admins) from accessing `C:\` via Explorer.
 
-3. **Done!** Everything is configured automatically.
+### Task Scheduler
+- **Name**: `DailyReboot`
+- **Schedule**: Every day at 03:00 AM.
+- **Action**: `shutdown.exe /r /t 0 /f`
 
-## Security Note
+### Active Directory Assets
+- **OU**: `OU=TestOU,DC=lab,DC=local`
+- **Standard User**: `testuser@lab.local` (Password: `P@ssw0rd123!`, member of Domain Users and Remote Desktop Users).
 
-The Security Group restricts RDP (port 3389) to the public IP of whoever runs `terraform apply`. If your IP changes, run `terraform apply` again to update it automatically.
+---
 
-> **⚠️ Production Considerations:**
-> This project is configured for **testing/demonstration** purposes. For production use, consider:
-> - Remove `force_destroy = true` from S3 buckets to prevent accidental deletion
-> - Set `lifecycle { prevent_destroy = true }` on critical resources (S3, Security Groups)
-> - Use a dedicated VPC with private subnets and a bastion host for RDP access
-> - Restrict egress traffic instead of allowing all (`0.0.0.0/0`)
-> - Enable AWS CloudTrail and S3 access logging
-> - Use AWS Systems Manager (SSM) instead of direct RDP when possible
+## Post-Deployment Verification
 
-## GitHub Actions (CI/CD)
+Log into the Domain Controller using RDP (using the parameters retrieved in the **Credentials & RDP Access** section) and execute the following PowerShell commands to verify the setup:
 
-The project includes three GitHub Actions workflows for continuous integration and deployment:
+```powershell
+# Verify Domain status
+Get-ADDomain | Select-Object DNSRoot, NetBIOSName, DomainMode
 
-### Available Workflows
+# Verify Active GPOs
+gpresult /r
 
-| Workflow | Trigger | Description |
-|----------|---------|-------------|
-| **Terraform Validate** | `push` / `pull request` | Lint, validate, security scan (Checkov), and OPA policy checks |
-| **Terraform Apply** | Manual (`workflow_dispatch`) | Plan + Apply with deployment summary |
-| **Terraform Destroy** | Manual (`workflow_dispatch`) | Destroys all infrastructure |
+# Verify Scheduled Task
+Get-ScheduledTask -TaskName DailyReboot | Select-Object TaskName, State, Actions
 
-### AWS Credentials
-
-The workflows work in two ways:
-
-1. **With GitHub Secrets** — Set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN` in your repository secrets
-2. **With AWS CLI locally** — If no secrets are set, the workflow uses the credentials already configured on your machine
-
-> No configuration needed — just trigger the workflow and it will detect the available credentials.
-
-## Clean Up
-
-```bash
-terraform destroy -auto-approve
+# Verify Test User setup
+Get-ADUser -Filter "SamAccountName -eq 'testuser'"
 ```
+
+---
+
+## Production Recommendations
+
+For staging or production deployments, address the following security and architecture details:
+- **Network Isolation**: Deploy the EC2 instance in a private subnet and configure AWS Systems Manager (SSM) for management instead of exposing RDP port 3389.
+- **State Management**: Use remote state storage with state locking (e.g., S3 backend with DynamoDB locking).
+- **Resource Lifecycle**: Implement `prevent_destroy = true` lifecycle blocks on critical assets.
+- **Logging & Monitoring**: Enable AWS CloudTrail, VPC Flow Logs, and ship Windows Event logs to a centralized log management tool.
